@@ -4,10 +4,15 @@ from os import getenv
 from openai import OpenAI
 from dotenv import load_dotenv
 import json
+from datetime import datetime, timezone, timedelta
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 load_dotenv()
 
 OPENAI_KEY = getenv("OPENAI_KEY")
+MONGO_URI = getenv("MONGO_URI")
+DATABASE_NAME = getenv("DATABASE_NAME")
 
 
 def generate_blog_titles(api_key: str, num_posts: int) -> list[str]:
@@ -18,7 +23,7 @@ def generate_blog_titles(api_key: str, num_posts: int) -> list[str]:
     A resposta deve ser um JSON válido com a chave 'themes'.
     As ideias devem ser interessantes e voltadas para tecnologia e desenvolvimento de software. 
     Não repita os temas.
-    Apenas os títulos, sem numeração, sem introduções ou explicações adicionais.
+    Apenas os títulos curtos e resumidos, sem numeração, sem introduções ou explicações adicionais.
     Não inclua nenhuma explicação ou texto adicional na resposta, apenas o array JSON.
     """
 
@@ -66,3 +71,17 @@ if __name__ == "__main__":
 
     json_formated = json.loads(blog_titles)
     print("Quantidade de temas gerados:", len(json_formated["themes"]))
+
+    brasilia_tz = timezone(timedelta(hours=-3))  # UTC-3
+
+    client = MongoClient(MONGO_URI, server_api=ServerApi("1"))
+    db = client[DATABASE_NAME]
+
+    documents = [
+        {"name": theme, "alreadyUsed": False, "createdAt": datetime.now(brasilia_tz)}
+        for theme in json_formated["themes"]
+    ]
+
+    result = db.Themes.insert_many(documents)
+
+    print("Salvo com sucesso.")
